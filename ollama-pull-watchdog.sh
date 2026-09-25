@@ -108,11 +108,25 @@ while true; do
     echo "--> Allowing 5s grace period for connection to establish..."
     sleep 5
 
-    # Check if connection dropped during initial setup
+    # Check if process exited during grace period (Success or Network Failure)
     if ! kill -0 $PID 2>/dev/null; then
-        echo "--> Connection interrupted or failed during initial setup. Retrying in 5 seconds..."
-        sleep 5
-        continue
+        wait $PID 2>/dev/null
+        EXIT_CODE=$?
+        
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo "==================================================="
+            echo "--> SUCCESS: $MODEL downloaded 100%!"
+            echo "==================================================="
+            
+            if command -v notify-send >/dev/null 2>&1; then
+                notify-send "Ollama Downloader" "Model '$MODEL' downloaded successfully!" -i emblem-default
+            fi
+            break
+        else
+            echo "--> Connection interrupted or failed during initial setup. Retrying in 5 seconds..."
+            sleep 5
+            continue
+        fi
     fi
 
     # Speed monitoring loop
