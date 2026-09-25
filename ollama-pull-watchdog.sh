@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # --- 1. Model Name Handling ---
 MODEL="$1"
@@ -97,29 +97,25 @@ echo " Min Speed    : ${MIN_SPEED_KBS} KB/s"
 echo " Press Ctrl+C anytime to cancel and exit."
 echo "==================================================="
 
+# --- 5. Main Download Loop ---
 while true; do
     echo "--> Starting/Resuming download for $MODEL..."
     
     ollama pull "$MODEL" &
     PID=$!
 
-    # Grace Period: 4 seconds to let Ollama initiate handshake
-    echo "--> Allowing 4s grace period for connection to establish..."
-    sleep 4
+    # Grace Period: 5 seconds to allow connection & manifest handshake
+    echo "--> Allowing 5s grace period for connection to establish..."
+    sleep 5
 
-    # Check if process died immediately (e.g., typo in model name)
+    # Check if connection dropped during initial setup
     if ! kill -0 $PID 2>/dev/null; then
-        wait $PID 2>/dev/null
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -ne 0 ]; then
-            echo "---------------------------------------------------"
-            echo "ERROR: Failed to start download for '$MODEL'."
-            echo "Please check if the model name is spelled correctly."
-            echo "---------------------------------------------------"
-            exit 1
-        fi
+        echo "--> Connection interrupted or failed during initial setup. Retrying in 5 seconds..."
+        sleep 5
+        continue
     fi
 
+    # Speed monitoring loop
     while kill -0 $PID 2>/dev/null; do
         RX1=$(get_rx_bytes)
         
@@ -131,7 +127,7 @@ while true; do
         
         RX2=$(get_rx_bytes)
         
-        # Calculate speed (KB/s over 4 seconds)
+        # Calculate speed (KB/s over 4 seconds interval)
         DIFF=$((RX2 - RX1))
         SPEED_KBS=$((DIFF / 4096))
 
@@ -161,7 +157,7 @@ while true; do
         echo "--> SUCCESS: $MODEL downloaded 100%!"
         echo "==================================================="
         
-        # Send Desktop Notification on Fedora/Linux
+        # Send Desktop Notification on Linux
         if command -v notify-send >/dev/null 2>&1; then
             notify-send "Ollama Downloader" "Model '$MODEL' downloaded successfully!" -i emblem-default
         fi
